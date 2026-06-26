@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSVP Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-dark: #1e293b;
+            --bright-orange: #ea580c;
+            --text-light: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-dark: #334155;
+            --inactive-grey: #475569;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--panel-dark);
+            color: var(--text-light);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border-dark);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mode-btn {
+            border: none;
+            padding: 6px 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .mode-btn.active {
+            background-color: var(--bright-orange);
+        }
+
+        .mode-btn.inactive {
+            background-color: var(--inactive-grey);
+            color: var(--text-muted);
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            padding: 15px;
+            gap: 15px;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .input-area {
+            background: var(--panel-dark);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-dark);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-dark);
+            border-radius: 4px;
+            resize: vertical;
+            font-size: 1rem;
+        }
+
+        textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .file-input-container {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+            border: 2px dashed var(--border-dark);
+            border-radius: 4px;
+            padding: 10px;
+            background: var(--bg-dark);
+            text-align: center;
+        }
+
+        .rsvp-card {
+            background: var(--bg-dark);
+            border-radius: 8px;
+            height: 160px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            border: 1px solid var(--border-dark);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .rsvp-word-container {
+            display: flex;
+            font-size: 3.5rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            width: 100%;
+            justify-content: center;
+            align-items: baseline; 
+            transition: font-size 0.1s ease;
+        }
+
+        .rsvp-part {
+            display: inline-block;
+            white-space: pre;
+            line-height: 1;
+        }
+
+        .rsvp-left {
+            flex: 1;
+            text-align: right;
+            color: var(--text-light);
+        }
+
+        .rsvp-center {
+            color: var(--bright-orange);
+        }
+
+        .rsvp-right {
+            flex: 1;
+            text-align: left;
+            color: var(--text-light);
+        }
+
+        .rsvp-card::before, .rsvp-card::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            width: 2px;
+            height: 12px;
+            background-color: var(--bright-orange);
+            transform: translateX(-50%);
+        }
+        .rsvp-card::before { top: 12px; }
+        .rsvp-card::after { bottom: 12px; }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: var(--panel-dark);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-dark);
+        }
+
+        .btn-ctrl {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-dark);
+            padding: 10px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-ctrl:hover {
+            background-color: #1e293b;
+        }
+
+        .wpm-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .wpm-container label {
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .wpm-numeric-input {
+            width: 65px;
+            padding: 6px 8px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-dark);
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .wpm-numeric-input:focus {
+            outline: none;
+            border-color: var(--bright-orange);
+        }
+
+        .wpm-numeric-input::-webkit-outer-spin-button,
+        .wpm-numeric-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .wpm-numeric-input {
+            -moz-appearance: textfield;
+        }
+
+        .wpm-container input[type="range"] {
+            flex: 1;
+            accent-color: var(--bright-orange);
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--panel-dark);
+            border-radius: 8px;
+            border: 1px solid var(--border-dark);
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .panel-header {
+            background: var(--bg-dark);
+            color: var(--text-light);
+            padding: 8px 15px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .text-viewer {
+            height: 140px; 
+            padding: 15px;
+            overflow-y: auto;
+            line-height: 1.6;
+            font-size: 1.05rem;
+            scroll-behavior: smooth;
+            background-color: var(--panel-dark);
+        }
+
+        .word-span {
+            cursor: pointer;
+            padding: 1px 3px;
+            border-radius: 3px;
+            transition: background-color 0.1s;
+            display: inline-block;
+            color: var(--text-muted);
+        }
+
+        .word-span:hover {
+            background-color: var(--border-dark);
+            color: var(--text-light);
+        }
+
+        .word-span.active-word {
+            background-color: var(--bright-orange);
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Fullscreen Configuration styles */
+        .rsvp-card:fullscreen {
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-dark);
+        }
+        
+        .rsvp-card:-webkit-full-screen {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-dark);
+        }
+
+        .rsvp-card:fullscreen .rsvp-word-container,
+        .rsvp-card:-webkit-full-screen .rsvp-word-container {
+            font-size: 8vw; 
+        }
+
+        .rsvp-card:fullscreen::before, .rsvp-card:-webkit-full-screen::before {
+            top: 4vh;
+            height: 4vh;
+            width: 4px;
+        }
+        .rsvp-card:fullscreen::after, .rsvp-card:-webkit-full-screen::after {
+            bottom: 4vh;
+            height: 4vh;
+            width: 4px;
+        }
+
+        @media (max-width: 600px) {
+            .rsvp-word-container {
+                font-size: 2.2rem;
+            }
+            .main-container {
+                padding: 10px;
+                gap: 10px;
+            }
+            .text-viewer {
+                height: 125px;
+                font-size: 0.95rem;
+            }
+            header h1 {
+                font-size: 1.1rem;
+            }
+            .wpm-container {
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>RSVP Engine</h1>
+        <div class="mode-toggle">
+            <button id="btnTextMode" class="mode-btn active" onclick="switchMode('text')">Text Input</button>
+            <button id="btnFileMode" class="mode-btn inactive" onclick="switchMode('file')">File Input</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="input-area">
+                <textarea id="textInput" placeholder="Paste, type text, or upload a supported document format to begin..."></textarea>
+                <div id="fileInputContainer" class="file-input-container">
+                    <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx,.srt,.csv" onchange="handleFileSelect(event)">
+                    <p id="fileStatus" style="margin-top: 8px; color: var(--text-muted); font-size: 0.85rem;">
+                        Supports .txt, .md, .docx, .pdf, .srt, .csv files
+                    </p>
+                </div>
+                <button class="btn-ctrl" style="background-color: var(--bright-orange); color: white;" onclick="loadText()">Load Text into Reader</button>
+            </div>
+
+            <div id="rsvpDisplayCard" class="rsvp-card" onclick="togglePlayback()">
+                <div class="rsvp-word-container">
+                    <div id="rsvpLeft" class="rsvp-part rsvp-left"></div>
+                    <div id="rsvpCenter" class="rsvp-part rsvp-center"></div>
+                    <div id="rsvpRight" class="rsvp-part rsvp-right"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="btnFullscreen" class="btn-ctrl" onclick="enterFullscreen()">Fullscreen</button>
+                <div class="wpm-container">
+                    <label for="wpmInput">WPM:</label>
+                    <input type="number" id="wpmInput" class="wpm-numeric-input" min="100" max="1000" step="25" value="300" oninput="handleWpmType(this.value)">
+                    <input type="range" id="wpmSlider" min="100" max="1000" step="25" value="300" oninput="handleWpmSlide(this.value)">
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="panel-header">Full Text Synchronization View</div>
+            <div id="textViewer" class="text-viewer">
+                <span style="color: var(--text-muted); font-style: italic;">Load text to populate the sync viewer window.</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configure PDF.js Worker globally
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let wordsArray = [];
+        let currentIndex = 0;
+        let isPlaying = false;
+        let rsvpInterval = null;
+        let wpm = 300;
+        let activeMode = 'text';
+
+        window.onload = () => {
+            setupGlobalListeners();
+        };
+
+        function setupGlobalListeners() {
+            window.addEventListener('keydown', (e) => {
+                if ((e.key === ' ' || e.key === 'k' || e.key === 'K') && 
+                    document.activeElement.tagName !== 'TEXTAREA' && 
+                    document.activeElement.tagName !== 'INPUT') {
+                    e.preventDefault();
+                    togglePlayback();
+                }
+            });
+
+            window.addEventListener('dblclick', () => {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    exitFullscreen();
+                }
+            });
+        }
+
+        function switchMode(mode) {
+            activeMode = mode;
+            const textBtn = document.getElementById('btnTextMode');
+            const fileBtn = document.getElementById('btnFileMode');
+            const textArea = document.getElementById('textInput');
+            const fileContainer = document.getElementById('fileInputContainer');
+
+            if (mode === 'text') {
+                textBtn.className = 'mode-btn active';
+                fileBtn.className = 'mode-btn inactive';
+                textArea.style.display = 'block';
+                fileContainer.style.display = 'none';
+            } else {
+                textBtn.className = 'mode-btn inactive';
+                fileBtn.className = 'mode-btn active';
+                textArea.style.display = 'none';
+                fileContainer.style.display = 'flex';
+            }
+            pause();
+        }
+
+        // Comprehensive document parsing management engine
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const filename = file.name.toLowerCase();
+            const statusLabel = document.getElementById('fileStatus');
+            statusLabel.innerText = "Processing and parsing file content...";
+            statusLabel.style.color = "var(--bright-orange)";
+
+            const reader = new FileReader();
+
+            if (filename.endsWith('.pdf')) {
+                reader.onload = function(e) {
+                    const typedarray = new Uint8Array(e.target.result);
+                    pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                        let totalPages = pdf.numPages;
+                        let pagePromises = [];
+                        
+                        for (let i = 1; i <= totalPages; i++) {
+                            pagePromises.push(pdf.getPage(i).then(function(page) {
+                                return page.getTextContent().then(function(textContent) {
+                                    return textContent.items.map(item => item.str).join(' ');
+                                });
+                            }));
+                        }
+                        
+                        Promise.all(pagePromises).then(function(textSegments) {
+                            document.getElementById('textInput').value = textSegments.join('\n');
+                            fileSuccessNotice(file.name);
+                        }).catch(handleParseError);
+                    }).catch(handleParseError);
+                };
+                reader.readAsArrayBuffer(file);
+
+            } else if (filename.endsWith('.docx')) {
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+                        .then(function(result) {
+                            document.getElementById('textInput').value = result.value;
+                            fileSuccessNotice(file.name);
+                        })
+                        .catch(handleParseError);
+                };
+                reader.readAsArrayBuffer(file);
+
+            } else {
+                // Default handling fallback for standard plain-text variants (.txt, .md, .srt, .csv)
+                reader.onload = function(e) {
+                    document.getElementById('textInput').value = e.target.result;
+                    fileSuccessNotice(file.name);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function fileSuccessNotice(name) {
+            const statusLabel = document.getElementById('fileStatus');
+            statusLabel.innerText = `Successfully loaded: ${name}`;
+            statusLabel.style.color = "#22c55e"; // Green confirmation flag indicator
+        }
+
+        function handleParseError(err) {
+            console.error(err);
+            const statusLabel = document.getElementById('fileStatus');
+            statusLabel.innerText = "Error parsing document. Verify file integrity.";
+            statusLabel.style.color = "#ef4444";
+        }
+
+        function loadText() {
+            pause();
+            const rawText = document.getElementById('textInput').value.trim();
+            if (!rawText) {
+                alert("Please input text or select a valid document file first.");
+                return;
+            }
+
+            wordsArray = rawText.split(/\s+/);
+            currentIndex = 0;
+
+            const viewer = document.getElementById('textViewer');
+            viewer.innerHTML = '';
+
+            wordsArray.forEach((word, index) => {
+                const span = document.createElement('span');
+                span.className = 'word-span';
+                span.id = `w-${index}`;
+                span.innerText = word + ' ';
+                span.onclick = (e) => {
+                    e.stopPropagation(); 
+                    jumpToWord(index);
+                };
+                viewer.appendChild(span);
+            });
+
+            renderCurrentWord();
+        }
+
+        function getOrpIndices(word) {
+            const len = word.length;
+            if (len <= 1) return 0;
+            if (len <= 5) return 1;
+            if (len <= 9) return 2;
+            if (len <= 13) return 3;
+            return 4;
+        }
+
+        function renderCurrentWord() {
+            if (wordsArray.length === 0) return;
+
+            const word = wordsArray[currentIndex];
+            const orpIdx = getOrpIndices(word);
+
+            const leftPart = word.substring(0, orpIdx);
+            const centerPart = word.charAt(orpIdx);
+            const rightPart = word.substring(orpIdx + 1);
+
+            document.getElementById('rsvpLeft').innerText = leftPart;
+            document.getElementById('rsvpCenter').innerText = centerPart;
+            document.getElementById('rsvpRight').innerText = rightPart;
+
+            document.querySelectorAll('.word-span.active-word').forEach(el => el.classList.remove('active-word'));
+            
+            const activeSpan = document.getElementById(`w-${currentIndex}`);
+            if (activeSpan) {
+                activeSpan.classList.add('active-word');
+                activeSpan.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        }
+
+        function togglePlayback() {
+            if (wordsArray.length === 0) {
+                loadText();
+                if (wordsArray.length === 0) return;
+            }
+
+            if (isPlaying) {
+                pause();
+            } else {
+                play();
+            }
+        }
+
+        function play() {
+            isPlaying = true;
+            const intervalMs = (60 / wpm) * 1000;
+            rsvpInterval = setInterval(() => {
+                if (currentIndex < wordsArray.length - 1) {
+                    currentIndex++;
+                    renderCurrentWord();
+                } else {
+                    pause();
+                }
+            }, intervalMs);
+        }
+
+        function pause() {
+            isPlaying = false;
+            if (rsvpInterval) {
+                clearInterval(rsvpInterval);
+                rsvpInterval = null;
+            }
+        }
+
+        function jumpToWord(index) {
+            currentIndex = index;
+            renderCurrentWord();
+            if (isPlaying) {
+                pause();
+                play();
+            }
+        }
+
+        function handleWpmSlide(val) {
+            wpm = parseInt(val);
+            document.getElementById('wpmInput').value = val;
+            resetIntervalIfPlaying();
+        }
+
+        function handleWpmType(val) {
+            let parsed = parseInt(val);
+            if (isNaN(parsed)) return;
+            
+            if (parsed < 100) parsed = 100;
+            if (parsed > 2000) parsed = 2000; 
+            
+            wpm = parsed;
+            document.getElementById('wpmSlider').value = parsed;
+            resetIntervalIfPlaying();
+        }
+
+        function resetIntervalIfPlaying() {
+            if (isPlaying) {
+                pause();
+                play();
+            }
+        }
+
+        function enterFullscreen() {
+            const rsvpCard = document.getElementById('rsvpDisplayCard');
+            if (rsvpCard.requestFullscreen) {
+                rsvpCard.requestFullscreen();
+            } else if (rsvpCard.webkitRequestFullscreen) { 
+                rsvpCard.webkitRequestFullscreen();
+            }
+        }
+
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>
