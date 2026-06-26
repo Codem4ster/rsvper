@@ -153,7 +153,7 @@
             width: 100%;
             justify-content: center;
             align-items: baseline; 
-            transition: font-size 0.1s ease;
+            transition: font-size 0.15s ease-in-out;
         }
 
         .rsvp-part {
@@ -186,6 +186,7 @@
             height: 12px;
             background-color: var(--bright-orange);
             transform: translateX(-50%);
+            transition: all 0.15s ease-in-out;
         }
         .rsvp-card::before { top: 12px; }
         .rsvp-card::after { bottom: 12px; }
@@ -286,6 +287,7 @@
             font-size: 1.05rem;
             scroll-behavior: smooth;
             background-color: var(--panel-dark);
+            position: relative; /* Fixed: Critical context mapping rule for child offset values */
         }
 
         .word-span {
@@ -308,41 +310,35 @@
             font-weight: bold;
         }
 
-        /* Fullscreen Configuration styles */
-        .rsvp-card:fullscreen {
-            width: 100vw;
-            height: 100vh;
-            border-radius: 0;
-            border: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg-dark);
-        }
-        
-        .rsvp-card:-webkit-full-screen {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg-dark);
+        /* Fullscreen Configuration and Forced Layout Class Assertions */
+        .rsvp-card:fullscreen,
+        .rsvp-card.is-fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            border: none !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            background-color: var(--bg-dark) !important;
+            z-index: 99999;
         }
 
-        .rsvp-card:fullscreen .rsvp-word-container,
-        .rsvp-card:-webkit-full-screen .rsvp-word-container {
-            font-size: 8vw; 
+        /* Scaled text properties applied explicitly via Class bindings */
+        .rsvp-card.is-fullscreen .rsvp-word-container {
+            font-size: 10vw !important; 
         }
 
-        .rsvp-card:fullscreen::before, .rsvp-card:-webkit-full-screen::before {
-            top: 4vh;
-            height: 4vh;
-            width: 4px;
+        /* Scaled crosshair parameters matching higher tracking speeds */
+        .rsvp-card.is-fullscreen::before {
+            top: 6vh !important;
+            height: 5vh !important;
+            width: 4px !important;
         }
-        .rsvp-card:fullscreen::after, .rsvp-card:-webkit-full-screen::after {
-            bottom: 4vh;
-            height: 4vh;
-            width: 4px;
+        .rsvp-card.is-fullscreen::after {
+            bottom: 6vh !important;
+            height: 5vh !important;
+            width: 4px !important;
         }
 
         @media (max-width: 600px) {
@@ -362,6 +358,10 @@
             }
             .wpm-container {
                 gap: 8px;
+            }
+            /* Extra mobile fallback rules for fullscreen landscape/portrait overrides */
+            .rsvp-card.is-fullscreen .rsvp-word-container {
+                font-size: 12vw !important;
             }
         }
     </style>
@@ -416,7 +416,6 @@
     </div>
 
     <script>
-        // Configure PDF.js Worker globally
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let wordsArray = [];
@@ -441,10 +440,23 @@
             });
 
             window.addEventListener('dblclick', () => {
-                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.fullscreenElement || document.webkitFullscreenElement || document.getElementById('rsvpDisplayCard').classList.contains('is-fullscreen')) {
                     exitFullscreen();
                 }
             });
+
+            // Native state monitors to safeguard structural CSS classes when API calls flip tracking states
+            document.addEventListener('fullscreenchange', handleFullscreenStateChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenStateChange);
+        }
+
+        function handleFullscreenStateChange() {
+            const rsvpCard = document.getElementById('rsvpDisplayCard');
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                rsvpCard.classList.add('is-fullscreen');
+            } else {
+                rsvpCard.classList.remove('is-fullscreen');
+            }
         }
 
         function switchMode(mode) {
@@ -468,7 +480,6 @@
             pause();
         }
 
-        // Comprehensive document parsing management engine
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -516,7 +527,6 @@
                 reader.readAsArrayBuffer(file);
 
             } else {
-                // Default handling fallback for standard plain-text variants (.txt, .md, .srt, .csv)
                 reader.onload = function(e) {
                     document.getElementById('textInput').value = e.target.result;
                     fileSuccessNotice(file.name);
@@ -528,7 +538,7 @@
         function fileSuccessNotice(name) {
             const statusLabel = document.getElementById('fileStatus');
             statusLabel.innerText = `Successfully loaded: ${name}`;
-            statusLabel.style.color = "#22c55e"; // Green confirmation flag indicator
+            statusLabel.style.color = "#22c55e"; 
         }
 
         function handleParseError(err) {
@@ -595,7 +605,15 @@
             const activeSpan = document.getElementById(`w-${currentIndex}`);
             if (activeSpan) {
                 activeSpan.classList.add('active-word');
-                activeSpan.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                
+                // Fixed localized window scroll positioning strategy
+                const viewer = document.getElementById('textViewer');
+                const calculatedTop = activeSpan.offsetTop - (viewer.clientHeight / 2) + (activeSpan.clientHeight / 2);
+                
+                viewer.scrollTo({
+                    top: calculatedTop,
+                    behavior: 'smooth'
+                });
             }
         }
 
@@ -673,6 +691,9 @@
                 rsvpCard.requestFullscreen();
             } else if (rsvpCard.webkitRequestFullscreen) { 
                 rsvpCard.webkitRequestFullscreen();
+            } else {
+                // Fallback for browsers with restricted sandboxed fullscreen elements (iOS Safari)
+                rsvpCard.classList.add('is-fullscreen');
             }
         }
 
@@ -681,6 +702,8 @@
                 document.exitFullscreen();
             } else if (document.webkitExitFullscreen) {
                 document.webkitExitFullscreen();
+            } else {
+                document.getElementById('rsvpDisplayCard').classList.remove('is-fullscreen');
             }
         }
     </script>
