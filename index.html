@@ -1,4 +1,4 @@
-<!You may access wikipedia article link reading mode by loading "m/wiki00" into the text input window.>
+<!you may access wikipedia article link viewer by loading "m/wiki00" into the text input window>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -388,14 +388,14 @@
         <div class="mode-toggle">
             <button id="btnTextMode" class="mode-btn active" onclick="switchMode('text')">Text Input</button>
             <button id="btnFileMode" class="mode-btn inactive" onclick="switchMode('file')">File Input</button>
-            <button id="btnWikiMode" class="mode-btn inactive" style="display: none;" onclick="switchMode('wiki')">Wikipedia Link</button>
+            <button id="btnWikiMode" class="mode-btn inactive" style="display: none;" onclick="switchMode('wiki')">Wikipedia Mode</button>
         </div>
     </header>
 
     <div class="main-container">
         <div class="left-panel">
             <div class="input-area">
-                <textarea id="textInput" placeholder="Paste, type text, or configure a dynamic source component setup..."></textarea>
+                <textarea id="textInput" placeholder="Paste or type text to read..."></textarea>
                 
                 <div id="fileInputContainer" class="file-input-container">
                     <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx,.srt,.csv" onchange="handleFileSelect(event)">
@@ -405,9 +405,9 @@
                 </div>
 
                 <div id="wikiInputContainer" class="wiki-input-container">
-                    <input type="text" id="wikiInput" placeholder="https://en.wikipedia.org/wiki/Speed_reading">
+                    <input type="text" id="wikiInput" placeholder="Paste a full link OR type any search phrase (e.g., 'Black holes')">
                     <p id="wikiStatus" style="margin-top: 6px; color: var(--text-muted); font-size: 0.85rem;">
-                        Paste a full Wikipedia link above
+                        Engine will auto-detect URLs or search for the closest article match
                     </p>
                 </div>
 
@@ -518,12 +518,11 @@
             pause();
         }
 
-        // Integrated control intercept to filter secret dynamic strings
         function executePrimaryLoad() {
             if (activeMode === 'text') {
                 const rawText = document.getElementById('textInput').value.trim();
+                // Check for hidden config string
                 if (rawText === 'm/wiki00') {
-                    // Reveal the hidden selector option element
                     document.getElementById('btnWikiMode').style.display = 'inline-block';
                     document.getElementById('textInput').value = '';
                     switchMode('wiki');
@@ -532,36 +531,66 @@
             }
 
             if (activeMode === 'wiki') {
-                fetchWikipediaContent();
+                handleWikipediaRequest();
             } else {
                 loadText();
             }
         }
 
-        function fetchWikipediaContent() {
+        function handleWikipediaRequest() {
             pause();
-            const url = document.getElementById('wikiInput').value.trim();
-            if (!url) {
-                alert("Please input a valid Wikipedia article link.");
+            const input = document.getElementById('wikiInput').value.trim();
+            if (!input) {
+                alert("Please input a valid Wikipedia article link or search term.");
                 return;
             }
 
-            const regex = /https?:\/\/([a-z]+)\.wikipedia\.org\/wiki\/(.+)/i;
-            const match = url.match(regex);
-
-            if (!match) {
-                alert("Invalid URL format. Example: https://en.wikipedia.org/wiki/Speed_reading");
-                return;
-            }
-
-            const lang = match[1];
-            const title = match[2];
             const statusLabel = document.getElementById('wikiStatus');
-            
-            statusLabel.innerText = "Connecting to Wikipedia API and parsing clean text extract...";
+
+            // Detect if input is likely a full URL
+            if (input.match(/^https?:\/\//i)) {
+                const regex = /https?:\/\/([a-z]+)\.wikipedia\.org\/wiki\/(.+)/i;
+                const match = input.match(regex);
+
+                if (!match) {
+                    alert("Invalid URL format. Example: https://en.wikipedia.org/wiki/Speed_reading");
+                    return;
+                }
+                const lang = match[1];
+                const title = decodeURIComponent(match[2]);
+                fetchWikipediaExtract(lang, title, statusLabel);
+            } 
+            // Handle plain-text semantic search
+            else {
+                statusLabel.innerText = "Searching Wikipedia for closest match...";
+                statusLabel.style.color = "var(--bright-orange)";
+
+                // Using standard en.wikipedia.org for general search fallback
+                const searchApiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(input)}&utf8=&format=json&origin=*`;
+
+                fetch(searchApiUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.query || !data.query.search || data.query.search.length === 0) {
+                            throw new Error("No articles found for that search term.");
+                        }
+                        const topTitle = data.query.search[0].title;
+                        statusLabel.innerText = `Found article: ${topTitle}. Fetching content...`;
+                        fetchWikipediaExtract('en', topTitle, statusLabel);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        statusLabel.innerText = "Search failed. Could not find a matching article.";
+                        statusLabel.style.color = "#ef4444";
+                    });
+            }
+        }
+
+        function fetchWikipediaExtract(lang, title, statusLabel) {
+            statusLabel.innerText = "Connecting to API and parsing clean text extract...";
             statusLabel.style.color = "var(--bright-orange)";
 
-            const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=${decodeURIComponent(title)}&format=json&origin=*`;
+            const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
 
             fetch(apiUrl)
                 .then(res => res.json())
@@ -578,14 +607,14 @@
                     }
 
                     document.getElementById('textInput').value = extractedText;
-                    statusLabel.innerText = `Successfully loaded text engine for: ${decodeURIComponent(title).replace(/_/g, ' ')}`;
+                    statusLabel.innerText = `Successfully loaded text engine for: ${title.replace(/_/g, ' ')}`;
                     statusLabel.style.color = "#22c55e";
                     
                     loadText();
                 })
                 .catch(err => {
                     console.error(err);
-                    statusLabel.innerText = "Fetch failed. Verify connectivity or URL title entry accuracy.";
+                    statusLabel.innerText = "Fetch failed. Verify connectivity or data accuracy.";
                     statusLabel.style.color = "#ef4444";
                 });
         }
