@@ -1,3 +1,5 @@
+<!You may access wikipedia article link reading mode by loading "m/wiki00" into the text input window.>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -117,7 +119,7 @@
             color: var(--text-muted);
         }
 
-        .file-input-container {
+        .file-input-container, .wiki-input-container {
             display: none;
             flex-direction: column;
             justify-content: center;
@@ -128,6 +130,22 @@
             padding: 10px;
             background: var(--bg-dark);
             text-align: center;
+        }
+
+        .wiki-input-container input[type="text"] {
+            width: 90%;
+            padding: 8px 12px;
+            background-color: var(--panel-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-dark);
+            border-radius: 4px;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .wiki-input-container input[type="text"]:focus {
+            outline: none;
+            border-color: var(--bright-orange);
         }
 
         .rsvp-card {
@@ -310,7 +328,7 @@
             font-weight: bold;
         }
 
-        /* Fullscreen Configuration Adjustments */
+        /* Fullscreen Configuration Rules */
         .rsvp-card:fullscreen,
         .rsvp-card.is-fullscreen {
             width: 100vw !important;
@@ -370,20 +388,30 @@
         <div class="mode-toggle">
             <button id="btnTextMode" class="mode-btn active" onclick="switchMode('text')">Text Input</button>
             <button id="btnFileMode" class="mode-btn inactive" onclick="switchMode('file')">File Input</button>
+            <button id="btnWikiMode" class="mode-btn inactive" style="display: none;" onclick="switchMode('wiki')">Wikipedia Link</button>
         </div>
     </header>
 
     <div class="main-container">
         <div class="left-panel">
             <div class="input-area">
-                <textarea id="textInput" placeholder="Paste, type text, or upload a supported document format to begin..."></textarea>
+                <textarea id="textInput" placeholder="Paste, type text, or configure a dynamic source component setup..."></textarea>
+                
                 <div id="fileInputContainer" class="file-input-container">
                     <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx,.srt,.csv" onchange="handleFileSelect(event)">
                     <p id="fileStatus" style="margin-top: 8px; color: var(--text-muted); font-size: 0.85rem;">
                         Supports .txt, .md, .docx, .pdf, .srt, .csv files
                     </p>
                 </div>
-                <button class="btn-ctrl" style="background-color: var(--bright-orange); color: white;" onclick="loadText()">Load Text into Reader</button>
+
+                <div id="wikiInputContainer" class="wiki-input-container">
+                    <input type="text" id="wikiInput" placeholder="https://en.wikipedia.org/wiki/Speed_reading">
+                    <p id="wikiStatus" style="margin-top: 6px; color: var(--text-muted); font-size: 0.85rem;">
+                        Paste a full Wikipedia link above
+                    </p>
+                </div>
+
+                <button id="btnLoadAction" class="btn-ctrl" style="background-color: var(--bright-orange); color: white;" onclick="executePrimaryLoad()">Load Text into Reader</button>
             </div>
 
             <div id="rsvpDisplayCard" class="rsvp-card" onclick="togglePlayback()">
@@ -418,7 +446,7 @@
         let wordsArray = [];
         let currentIndex = 0;
         let isPlaying = false;
-        let rsvpTimeout = null; // Refactored tracking handle to maintain variable timeouts
+        let rsvpTimeout = null; 
         let wpm = 300;
         let activeMode = 'text';
 
@@ -459,21 +487,107 @@
             activeMode = mode;
             const textBtn = document.getElementById('btnTextMode');
             const fileBtn = document.getElementById('btnFileMode');
+            const wikiBtn = document.getElementById('btnWikiMode');
+            
             const textArea = document.getElementById('textInput');
             const fileContainer = document.getElementById('fileInputContainer');
+            const wikiContainer = document.getElementById('wikiInputContainer');
+            const loadBtn = document.getElementById('btnLoadAction');
+
+            textBtn.className = 'mode-btn inactive';
+            fileBtn.className = 'mode-btn inactive';
+            wikiBtn.className = 'mode-btn inactive';
+            
+            textArea.style.display = 'none';
+            fileContainer.style.display = 'none';
+            wikiContainer.style.display = 'none';
 
             if (mode === 'text') {
                 textBtn.className = 'mode-btn active';
-                fileBtn.className = 'mode-btn inactive';
                 textArea.style.display = 'block';
-                fileContainer.style.display = 'none';
-            } else {
-                textBtn.className = 'mode-btn inactive';
+                loadBtn.innerText = "Load Text into Reader";
+            } else if (mode === 'file') {
                 fileBtn.className = 'mode-btn active';
-                textArea.style.display = 'none';
                 fileContainer.style.display = 'flex';
+                loadBtn.innerText = "Load Text into Reader";
+            } else if (mode === 'wiki') {
+                wikiBtn.className = 'mode-btn active';
+                wikiContainer.style.display = 'flex';
+                loadBtn.innerText = "Fetch & Load Wiki Article";
             }
             pause();
+        }
+
+        // Integrated control intercept to filter secret dynamic strings
+        function executePrimaryLoad() {
+            if (activeMode === 'text') {
+                const rawText = document.getElementById('textInput').value.trim();
+                if (rawText === 'm/wiki00') {
+                    // Reveal the hidden selector option element
+                    document.getElementById('btnWikiMode').style.display = 'inline-block';
+                    document.getElementById('textInput').value = '';
+                    switchMode('wiki');
+                    return;
+                }
+            }
+
+            if (activeMode === 'wiki') {
+                fetchWikipediaContent();
+            } else {
+                loadText();
+            }
+        }
+
+        function fetchWikipediaContent() {
+            pause();
+            const url = document.getElementById('wikiInput').value.trim();
+            if (!url) {
+                alert("Please input a valid Wikipedia article link.");
+                return;
+            }
+
+            const regex = /https?:\/\/([a-z]+)\.wikipedia\.org\/wiki\/(.+)/i;
+            const match = url.match(regex);
+
+            if (!match) {
+                alert("Invalid URL format. Example: https://en.wikipedia.org/wiki/Speed_reading");
+                return;
+            }
+
+            const lang = match[1];
+            const title = match[2];
+            const statusLabel = document.getElementById('wikiStatus');
+            
+            statusLabel.innerText = "Connecting to Wikipedia API and parsing clean text extract...";
+            statusLabel.style.color = "var(--bright-orange)";
+
+            const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=${decodeURIComponent(title)}&format=json&origin=*`;
+
+            fetch(apiUrl)
+                .then(res => res.json())
+                .then(data => {
+                    const pages = data.query.pages;
+                    const id = Object.keys(pages)[0];
+                    if (id === "-1") {
+                        throw new Error("Article content not found.");
+                    }
+                    
+                    const extractedText = pages[id].extract;
+                    if (!extractedText) {
+                        throw new Error("Target document missing standard text fields.");
+                    }
+
+                    document.getElementById('textInput').value = extractedText;
+                    statusLabel.innerText = `Successfully loaded text engine for: ${decodeURIComponent(title).replace(/_/g, ' ')}`;
+                    statusLabel.style.color = "#22c55e";
+                    
+                    loadText();
+                })
+                .catch(err => {
+                    console.error(err);
+                    statusLabel.innerText = "Fetch failed. Verify connectivity or URL title entry accuracy.";
+                    statusLabel.style.color = "#ef4444";
+                });
         }
 
         function handleFileSelect(event) {
@@ -548,7 +662,7 @@
             pause();
             const rawText = document.getElementById('textInput').value.trim();
             if (!rawText) {
-                alert("Please input text or select a valid document file first.");
+                alert("Please ensure text contents are entered or processed before calling engine cycles.");
                 return;
             }
 
@@ -614,7 +728,7 @@
 
         function togglePlayback() {
             if (wordsArray.length === 0) {
-                loadText();
+                executePrimaryLoad();
                 if (wordsArray.length === 0) return;
             }
 
@@ -625,7 +739,6 @@
             }
         }
 
-        // Refactored playback scheduler loops
         function play() {
             isPlaying = true;
             runTicker();
@@ -636,12 +749,9 @@
 
             renderCurrentWord();
 
-            // Calculate length scaling factor 
             const baseIntervalMs = (60 / wpm) * 1000;
             const currentWord = wordsArray[currentIndex] || "";
             
-            // Adjust delay based on deviations from an average 5-letter baseline
-            // Clamped between 0.6x and 1.8x base values to prevent wild timing swings
             const lengthFactor = Math.max(0.6, Math.min(1.8, 1 + (currentWord.length - 5) * 0.08));
             const targetedDelay = baseIntervalMs * lengthFactor;
 
